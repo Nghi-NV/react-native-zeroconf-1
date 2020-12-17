@@ -10,86 +10,90 @@ export default class Zeroconf extends EventEmitter {
     this._services = {}
     this._publishedServices = {}
     this._dListeners = {}
-
-    this.addDeviceListeners()
   }
 
-  /**
-   * Add all event listeners
-   */
-  addDeviceListeners() {
-    if (Object.keys(this._dListeners).length) {
-      return this.emit('error', new Error('RNZeroconf listeners already in place.'))
+  on(event, callback) {
+    if (event === 'start') {
+      DeviceEventEmitter.addListener('RNZeroconfStart', () => {
+        callback && callback('start');
+      })
     }
 
-    this._dListeners.start = DeviceEventEmitter.addListener('RNZeroconfStart', () =>
-      this.emit('start'),
-    )
+    if (event === 'stop') {
+      DeviceEventEmitter.addListener('RNZeroconfStop', () => {
+        callback && callback('stop');
+      })
+    }
 
-    this._dListeners.stop = DeviceEventEmitter.addListener('RNZeroconfStop', () =>
-      this.emit('stop'),
-    )
+    if (event === 'error') {
+      DeviceEventEmitter.addListener('RNZeroconfError', (err) => {
+        callback && callback(err);
+      })
+    }
 
-    this._dListeners.error = DeviceEventEmitter.addListener('RNZeroconfError', err =>
-      this.emit('error', err),
-    )
+    if (event === 'found') {
+      DeviceEventEmitter.addListener('RNZeroconfFound', service => {
+        if (!service || !service.name) {
+          return;
+        }
+        const { name } = service
 
-    this._dListeners.found = DeviceEventEmitter.addListener('RNZeroconfFound', service => {
-      if (!service || !service.name) {
-        return
-      }
-      const { name } = service
+        this._services[name] = service
+        callback && callback(name);
+      })
+    }
 
-      this._services[name] = service
-      this.emit('found', name)
-      this.emit('update')
-    })
+    if (event === 'remove') {
+      DeviceEventEmitter.addListener('RNZeroconfRemove', service => {
+        if (!service || !service.name) {
+          return
+        }
+        const { name } = service
 
-    this._dListeners.remove = DeviceEventEmitter.addListener('RNZeroconfRemove', service => {
-      if (!service || !service.name) {
-        return
-      }
-      const { name } = service
+        delete this._services[name]
 
-      delete this._services[name]
+        callback && callback(name);
+      })
+    }
 
-      this.emit('remove', name)
-      this.emit('update')
-    })
-
-    this._dListeners.resolved = DeviceEventEmitter.addListener('RNZeroconfResolved', service => {
-      if (!service || !service.name) {
-        return
-      }
-
-      this._services[service.name] = service
-      this.emit('resolved', service)
-      this.emit('update')
-    })
-
-    this._dListeners.published = DeviceEventEmitter.addListener(
-      'RNZeroconfServiceRegistered',
-      service => {
+    if (event === 'resolved') {
+      DeviceEventEmitter.addListener('RNZeroconfResolved', service => {
         if (!service || !service.name) {
           return
         }
 
-        this._publishedServices[service.name] = service
-        this.emit('published', service)
-      },
-    )
+        this._services[service.name] = service
+        callback && callback(service);
+      })
+    }
 
-    this._dListeners.unpublished = DeviceEventEmitter.addListener(
-      'RNZeroconfServiceUnregistered',
-      service => {
-        if (!service || !service.name) {
-          return
-        }
+    if (event === 'published') {
+      DeviceEventEmitter.addListener(
+        'RNZeroconfServiceRegistered',
+        service => {
+          if (!service || !service.name) {
+            return
+          }
 
-        delete this._publishedServices[service.name]
-        this.emit('unpublished', service)
-      },
-    )
+          this._publishedServices[service.name] = service
+          callback && callback(service);
+        },
+      )
+    }
+
+    if (event === 'unpublished') {
+      DeviceEventEmitter.addListener(
+        'RNZeroconfServiceUnregistered',
+        service => {
+          if (!service || !service.name) {
+            return
+          }
+
+          delete this._publishedServices[service.name]
+          callback && callback(service);
+        },
+      )
+    }
   }
 
   /**
